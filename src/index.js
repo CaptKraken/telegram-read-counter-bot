@@ -118,7 +118,6 @@ app.post(URI, async (req, res) => {
         convertKhmerToArabicNumerals(count),
         messageId
       );
-      await sendReport();
     }
   } catch (err) {
     sendMessageToAdmin(err);
