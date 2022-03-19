@@ -115,7 +115,7 @@ app.post(URI, async (req, res) => {
 
       await updateOrCreate(
         user,
-        convertKhmerToArabicNumerals(count),
+        Number(convertKhmerToArabicNumerals(count)),
         messageId
       );
     }
