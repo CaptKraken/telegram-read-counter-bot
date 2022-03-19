@@ -94,6 +94,7 @@ app.post(URI, async (req, res) => {
     }
 
     if (text === "/report@read_count_bot" || text === "/report") {
+      console.log("report");
       await sendReport();
       return res.send();
     }

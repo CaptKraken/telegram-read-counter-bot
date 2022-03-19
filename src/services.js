@@ -25,7 +25,7 @@ const dbConnectionTest = async () => {
     await client.db("admin").command({ ping: 1 });
     console.log("Connected successfully to server");
   } catch (err) {
-    console.error(err);
+    await sendMessageToAdmin("DATABASE CONNECTION ERROR ", new Date.now());
   } finally {
     // Ensures that the client will close when you finish/error
     await client.close();
@@ -139,17 +139,17 @@ const sendReport = async () => {
       .collection("data")
       .findOne({ _id: ObjectId(COLLECTION_ID) });
 
-    // send message to telegram
-    const report = `#${collection.report_count} អានប្រចាំថ្ងៃ 7AM:`;
+    // prepare the message
+    let report = `#${collection.report_count} អានប្រចាំថ្ងៃ 7AM:`;
     const countData = Object.fromEntries(
       Object.entries(collection.data).sort(([, a], [, b]) => b.count - a.count)
     );
-    Object.keys(countData).forEach(
-      (key, i) =>
-        (report += `\n${(i + 1).toString().padStart(2, "0")} - ${key}: ${
-          countData[key].count
-        }`)
-    );
+    Object.keys(countData).forEach((key, i) => {
+      report += `\n${(i + 1).toString().padStart(2, "0")} - ${key}: ${
+        countData[key].count
+      }`;
+    });
+
     await sendMessage(CHAT_ID, report);
   } catch (err) {
     await sendMessageToAdmin(err);
