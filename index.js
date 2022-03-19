@@ -154,7 +154,7 @@ const sendMessage = async ({ chat_id, message }) => {
 };
 
 cron.schedule(
-  "51 16 * * *",
+  "00 17 * * *",
   async function () {
     try {
       await client.connect();
