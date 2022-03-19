@@ -18,6 +18,14 @@ const {
   ADMIN_ID,
   CHAT_ID,
 } = process.env;
+
+const {
+  client,
+  sendReport,
+  sendMessageToAdmin,
+  removeUser,
+  updateOrCreate,
+} = require("./services");
 const TELEGRAM_API = `https://api.telegram.org/bot${TOKEN}`;
 const URI = `/webhook/${TOKEN}`;
 const WEBHOOK_URL = SERVER_URL + URI;
@@ -31,49 +39,49 @@ const { MongoClient, ObjectId } = require("mongodb");
 const uri = CONNECTION_STRING;
 
 const client = new MongoClient(uri);
-const updateOrCreate = async (readerName, count, messageId) => {
-  try {
-    await client
-      .db("news-read-count-db")
-      .collection("data")
-      .updateOne(
-        { _id: ObjectId(COLLECTION_ID) },
-        [
-          {
-            $set: {
-              [`data.${readerName}.count`]: {
-                $cond: {
-                  if: {
-                    $gte: [messageId, `$data.${readerName}.last_msg_id`],
-                  },
-                  then: count,
-                  else: `$data.${readerName}.count`,
-                },
-              },
-            },
-          },
-          {
-            $set: {
-              [`data.${readerName}.last_msg_id`]: {
-                $cond: {
-                  if: {
-                    $gte: [messageId, `$data.${readerName}.last_msg_id`],
-                  },
-                  then: messageId,
-                  else: `$data.${readerName}.last_msg_id`,
-                },
-              },
-            },
-          },
-        ],
-        {
-          upsert: true,
-        }
-      );
-  } catch (err) {
-    await sendMessageToAdmin(err);
-  }
-};
+// const updateOrCreate = async (readerName, count, messageId) => {
+//   try {
+//     await client
+//       .db("news-read-count-db")
+//       .collection("data")
+//       .updateOne(
+//         { _id: ObjectId(COLLECTION_ID) },
+//         [
+//           {
+//             $set: {
+//               [`data.${readerName}.count`]: {
+//                 $cond: {
+//                   if: {
+//                     $gte: [messageId, `$data.${readerName}.last_msg_id`],
+//                   },
+//                   then: count,
+//                   else: `$data.${readerName}.count`,
+//                 },
+//               },
+//             },
+//           },
+//           {
+//             $set: {
+//               [`data.${readerName}.last_msg_id`]: {
+//                 $cond: {
+//                   if: {
+//                     $gte: [messageId, `$data.${readerName}.last_msg_id`],
+//                   },
+//                   then: messageId,
+//                   else: `$data.${readerName}.last_msg_id`,
+//                 },
+//               },
+//             },
+//           },
+//         ],
+//         {
+//           upsert: true,
+//         }
+//       );
+//   } catch (err) {
+//     await sendMessageToAdmin(err);
+//   }
+// };
 
 const dbConnectionTest = async () => {
   try {
@@ -92,69 +100,69 @@ const init = async () => {
   await axios.get(`${TELEGRAM_API}/setWebhook?url=${WEBHOOK_URL}`);
 };
 
-const removeUser = async (readerName) => {
-  let message = "";
-  try {
-    await client
-      .db("news-read-count-db")
-      .collection("data")
-      .updateOne(
-        { _id: ObjectId(COLLECTION_ID) },
-        {
-          $unset: {
-            [`data.${readerName}`]: null,
-          },
-        }
-      );
-    message = `reader ${readerName} removed.`;
-  } catch (err) {
-    message = err;
-  } finally {
-    await sendMessageToAdmin(message);
-  }
-};
+// const removeUser = async (readerName) => {
+//   let message = "";
+//   try {
+//     await client
+//       .db("news-read-count-db")
+//       .collection("data")
+//       .updateOne(
+//         { _id: ObjectId(COLLECTION_ID) },
+//         {
+//           $unset: {
+//             [`data.${readerName}`]: null,
+//           },
+//         }
+//       );
+//     message = `reader ${readerName} removed.`;
+//   } catch (err) {
+//     message = err;
+//   } finally {
+//     await sendMessageToAdmin(message);
+//   }
+// };
 
-const sendReport = async () => {
-  try {
-    let collection = await client
-      .db("news-read-count-db")
-      .collection("data")
-      .findOne({ _id: ObjectId(COLLECTION_ID) });
+// const sendReport = async () => {
+//   try {
+//     let collection = await client
+//       .db("news-read-count-db")
+//       .collection("data")
+//       .findOne({ _id: ObjectId(COLLECTION_ID) });
 
-    // send message to telegram
-    let report = `#${collection.report_count} អានប្រចាំថ្ងៃ 7AM:`;
-    let countData = Object.fromEntries(
-      Object.entries(collection.data).sort(([, a], [, b]) => b.count - a.count)
-    );
-    Object.keys(countData).forEach(
-      (key, i) =>
-        (report += `\n${(i + 1).toString().padStart(2, "0")} - ${key}: ${
-          countData[key].count
-        }`)
-    );
-    await sendMessage({ chat_id: CHAT_ID, message: report });
-  } catch (err) {
-    await sendMessageToAdmin(err);
-  }
-};
+//     // send message to telegram
+//     let report = `#${collection.report_count} អានប្រចាំថ្ងៃ 7AM:`;
+//     let countData = Object.fromEntries(
+//       Object.entries(collection.data).sort(([, a], [, b]) => b.count - a.count)
+//     );
+//     Object.keys(countData).forEach(
+//       (key, i) =>
+//         (report += `\n${(i + 1).toString().padStart(2, "0")} - ${key}: ${
+//           countData[key].count
+//         }`)
+//     );
+//     await sendMessage({ chat_id: CHAT_ID, message: report });
+//   } catch (err) {
+//     await sendMessageToAdmin(err);
+//   }
+// };
 
-const sendMessageToAdmin = async (message) => {
-  await sendMessage({
-    chat_id: ADMIN_ID,
-    message,
-  });
-};
+// const sendMessageToAdmin = async (message) => {
+//   await sendMessage({
+//     chat_id: ADMIN_ID,
+//     message,
+//   });
+// };
 
-const sendMessage = async ({ chat_id, message }) => {
-  if (!chat_id || !message) return;
-  await axios.post(`${TELEGRAM_API}/sendMessage`, {
-    chat_id,
-    text: message,
-  });
-};
+// const sendMessage = async ({ chat_id, message }) => {
+//   if (!chat_id || !message) return;
+//   await axios.post(`${TELEGRAM_API}/sendMessage`, {
+//     chat_id,
+//     text: message,
+//   });
+// };
 
 cron.schedule(
-  "00 17 * * *",
+  "00 07 * * *",
   async function () {
     try {
       await client.connect();
@@ -179,13 +187,6 @@ cron.schedule(
 app.get("/", (req, res) => {
   res.json({
     running: true,
-  });
-});
-
-app.get("/hello", (req, res) => {
-  res.json({
-    running: true,
-    hello: "hi",
   });
 });
 
@@ -260,5 +261,4 @@ app.post(URI, async (req, res) => {
 app.listen(process.env.PORT || 5000, async () => {
   console.log(`app running on port `, process.env.PORT || 5000);
   await init();
-  await dbConnectionTest().catch(console.dir);
 });
