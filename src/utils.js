@@ -23,28 +23,51 @@ const numberMapArabicToKhmer = {
   9: "៩",
 };
 
+/**
+ * converts khmer numerals to arabic
+ * @param {string} value - i.e. "១២"​, "12", "១២52"
+ * @returns string; formatted arabic numerals or the original value
+ */
 const convertKhmerToArabicNumerals = (value) => {
   let splited = value.split("");
-  let result = [];
   for (let i = 0; i < splited.length; i++) {
     if (
       numberMapKhmerToArabic[splited[i]] ||
       numberMapKhmerToArabic[splited[i]] === 0
     ) {
-      result[i] = numberMapKhmerToArabic[splited[i]];
+      // replace it with the arabic numeral
+      splited[i] = numberMapKhmerToArabic[splited[i]];
     } else if (numberMapArabicToKhmer[splited[i]]) {
-      result[i] = splited[i];
+      // skip
+      continue;
     } else {
-      // if the value wasn't found in the number map, returns value
+      // if the value wasn't found in the number maps, returns value
       return value;
     }
   }
-  return result.join("");
+  return splited.join("");
 };
 
+/**
+ * checks if string is a number
+ * @param {string} value - i.e. "១២"​, "12", "១២52", "១z២52"
+ * @returns boolean
+ */
 const isNumber = (value) =>
   Number(convertKhmerToArabicNumerals(value)).toString() !== "NaN";
+
+/**
+ * checks if string has "នាទី" in it
+ * @param {string} value - i.e. "១២នាទី"​, "12នាទី"
+ * @returns boolean
+ */
 const isDurationString = (value) => value.includes("នាទី");
+
+/**
+ * checks if string has "ដង" in it
+ * @param {string} value - i.e. "១២នាទី"​, "12នាទី"
+ * @returns boolean
+ */
 const isTimesString = (value) => value.includes("ដង");
 
 module.exports = {
