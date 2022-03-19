@@ -153,22 +153,28 @@ const sendMessage = async ({ chat_id, message }) => {
   });
 };
 
-cron.schedule("0 7 * * *", async function () {
-  try {
-    await client.connect();
-    await client
-      .db("news-read-count-db")
-      .collection("data")
-      .findOneAndUpdate(
-        { _id: ObjectId(COLLECTION_ID) },
-        { $inc: { report_count: 1 } }
-      );
-    await sendReport();
-  } catch (err) {
-  } finally {
-    await client.close();
+cron.schedule(
+  "51 16 * * *",
+  async function () {
+    try {
+      await client.connect();
+      await client
+        .db("news-read-count-db")
+        .collection("data")
+        .findOneAndUpdate(
+          { _id: ObjectId(COLLECTION_ID) },
+          { $inc: { report_count: 1 } }
+        );
+      await sendReport();
+    } catch (err) {
+    } finally {
+      await client.close();
+    }
+  },
+  {
+    timezone: "Asia/Phnom_Penh",
   }
-});
+);
 
 app.get("/", (req, res) => {
   res.json({
