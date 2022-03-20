@@ -40,7 +40,7 @@ const init = async () => {
 
 // cron job to send report to the group everyday at 7 am
 cron.schedule(
-  "10 07 * * *",
+  "12 07 * * *",
   async function () {
     try {
       await client.connect();
