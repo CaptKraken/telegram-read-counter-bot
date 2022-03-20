@@ -45,7 +45,7 @@ setInterval(function () {
 
 // cron job to send report to the group everyday at 7 am
 cron.schedule(
-  "12 07 * * *",
+  "00 07 * * *",
   async function () {
     try {
       await client.connect();
