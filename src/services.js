@@ -189,8 +189,7 @@ const sendMessage = async (chat_id, message) => {
 
 module.exports = {
   client: client,
-  dbConnectionTest,
-  dbConnectionTest,
+  dbConnectionTest: dbConnectionTest,
   increaseReportCount: increaseReportCount,
   updateOrCreate: updateOrCreate,
   removeReader: removeReader,
