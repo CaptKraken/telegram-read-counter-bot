@@ -41,7 +41,7 @@ const init = async () => {
 // keep the heroku app alive
 setInterval(function () {
   axios.get(SERVER_URL);
-}, 300000); // every 5 minutes (300000)
+}, 600000); // every 10 minutes
 
 // cron job to send report to the group everyday at 7 am
 cron.schedule(
