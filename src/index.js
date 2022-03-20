@@ -85,7 +85,7 @@ app.post(URI, async (req, res) => {
   }
   try {
     await client.connect();
-    if (text.includes("/remove")) {
+    if (text.startsWith("/remove")) {
       let removeCommandText = text.includes("/remove@read_count_bot")
         ? "/remove@read_count_bot"
         : "/remove";
@@ -98,7 +98,7 @@ app.post(URI, async (req, res) => {
       return res.send();
     }
 
-    if (text === "/report@read_count_bot" || text === "/report") {
+    if (text.startsWith("/report")) {
       await sendReport();
       return res.send();
     }
