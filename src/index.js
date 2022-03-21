@@ -10,7 +10,7 @@ const {
 } = require("./utils");
 const cron = require("node-cron");
 
-const { TOKEN, SERVER_URL, ADMIN_ID, CHAT_ID } = process.env;
+const { TOKEN, SERVER_URL, ADMIN_ID, CHAT_ID, COLLECTION_ID } = process.env;
 
 const {
   client,
@@ -18,11 +18,20 @@ const {
   sendMessageToAdmin,
   removeReader,
   updateOrCreate,
+  removeAdmin,
+  findOneDocument,
+  sendsAdminList,
   increaseReportCount,
+  sendMessage,
+  addAsAdmin,
 } = require("./services");
+const { cache, setCache, isAdmin } = require("./cache");
+
 const TELEGRAM_API = `https://api.telegram.org/bot${TOKEN}`;
 const URI = `/webhook/${TOKEN}`;
 const WEBHOOK_URL = SERVER_URL + URI;
+
+// let cache = {};
 
 const app = express();
 app.use(bodyParser.json());
@@ -32,8 +41,13 @@ app.use(bodyParser.json());
 // set webhook for bot
 const init = async () => {
   try {
-    await axios.get(`${TELEGRAM_API}/setWebhook?url=${WEBHOOK_URL}`);
+    const res = await axios.get(
+      `${TELEGRAM_API}/setWebhook?url=${WEBHOOK_URL}`
+    );
+    if (cache.length > 0) return;
+    await setCache();
   } catch (err) {
+    console.log(err);
     sendMessageToAdmin(err);
   }
 };
@@ -68,7 +82,6 @@ app.get("/", (req, res) => {
   });
 });
 
-// webhook handler
 app.post(URI, async (req, res) => {
   const message = req.body.message || req.body.edited_message;
   if (!message) return res.send();
@@ -77,14 +90,52 @@ app.post(URI, async (req, res) => {
   if (!text) return res.send();
   const messageId = message.message_id;
   const chatId = message.chat.id;
-  if (
-    !chatId ||
-    (Number(chatId) != Number(CHAT_ID) && Number(chatId) != Number(ADMIN_ID))
-  ) {
-    return res.send();
-  }
+  if (!chatId) return res.send();
+  const senderId = message.from.id;
+  const isSenderAdmin = await isAdmin(senderId);
+
   try {
     await client.connect();
+
+    if (text === "/me") {
+      await sendMessage(
+        chatId,
+        `id: ${senderId}\nusername: ${message.from.username}`
+      );
+      return res.send();
+    }
+    if (Number(chatId) != Number(CHAT_ID) && !isSenderAdmin) {
+      return res.send();
+    }
+
+    if (text.startsWith("/admins")) {
+      await sendsAdminList();
+      return res.send();
+    }
+
+    if (text.startsWith("/addAsAdmin")) {
+      let addAdminCommandText = text.includes("/addAsAdmin@read_count_bot")
+        ? "/addAsAdmin@read_count_bot"
+        : "/addAsAdmin";
+      const [username, id] = text
+        .replace(`${addAdminCommandText} `, "")
+        .split(" ");
+      if (!username || !id) return res.send();
+
+      await addAsAdmin(username, id);
+      return res.send();
+    }
+    if (text.startsWith("/removeAdmin")) {
+      let removeCommandText = text.includes("/removeAdmin@read_count_bot")
+        ? "/removeAdmin@read_count_bot"
+        : "/removeAdmin";
+      const adminName = text.replace(`${removeCommandText} `, "");
+      if (adminName) {
+        await removeAdmin(adminName);
+      }
+      return res.send();
+    }
+
     if (text.startsWith("/remove")) {
       let removeCommandText = text.includes("/remove@read_count_bot")
         ? "/remove@read_count_bot"
