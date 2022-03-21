@@ -6,6 +6,7 @@ const TELEGRAM_API = `https://api.telegram.org/bot${TOKEN}`;
 const { MongoClient, ObjectId } = require("mongodb");
 const uri = CONNECTION_STRING;
 
+let cache = {};
 /**
  * the database client
  * @returns MongoClient
@@ -28,6 +29,39 @@ const dbConnectionTest = async () => {
   } finally {
     // Ensures that the client will close when you finish/error
     await client.close();
+  }
+};
+
+const setCache = async () => {
+  try {
+    await client.connect();
+    const col = await findOneDocument(COLLECTION_ID);
+    cache = { ...col };
+  } catch (err) {
+    console.log(err);
+    throw new Error(err);
+  } finally {
+    await client.close();
+  }
+};
+
+const isAdmin = async (chatId) => {
+  const admins = cache.admins;
+  if (admins) {
+    for (n in admins) {
+      if (Number(admins[n]) === Number(chatId)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  try {
+    console.log("no cache");
+    await setCache();
+    await isAdmin(chatId);
+  } catch (err) {
+    throw new Error(err);
   }
 };
 
@@ -78,7 +112,9 @@ const updateOrCreate = async (readerName, count, messageId) => {
         }
       );
   } catch (err) {
-    await sendMessageToAdmin(err);
+    await sendMessageToAdmin(
+      `function: updateOrCreate\nreaderName: ${readerName}\ncount: ${count}\nmessage id: ${messageId}\nerror: ${err}`
+    );
   }
 };
 
@@ -96,7 +132,7 @@ const increaseReportCount = async () => {
         { $inc: { report_count: 1 } }
       );
   } catch (err) {
-    await sendMessageToAdmin(err);
+    await sendMessageToAdmin(`function: increaseReportCount\nerror: ${err}`);
   }
 };
 
@@ -121,24 +157,35 @@ const removeReader = async (readerName) => {
       );
     message = `reader ${readerName} removed.`;
   } catch (err) {
-    message = err;
+    message = `function: removeReader\nreaderName: ${readerName}\nerror: ${err}`;
   } finally {
     await sendMessageToAdmin(message);
   }
 };
 
+/**
+ * find all admins
+ * @returns admin object
+ */
 const findAllAdmins = async () => {
   try {
     const res = await findOneDocument(COLLECTION_ID);
     return res.admins;
   } catch (err) {
-    sendMessageToAdmin("findAllAdmins Error", err);
+    await sendMessageToAdmin(`function: findAllAdmins\nerror: ${err}`);
   }
 };
-const sendsAdminList = async () => {
+
+/**
+ * send the admin list to the provided chat id
+ * @param {number|string} chatId
+ * @returns void
+ */
+const sendAdminList = async (chatId) => {
+  if (!chatId) return;
   try {
     const admins = await findAllAdmins();
-    if (!admins) return res.send();
+    if (!admins) return;
     let message = "ADMINS:";
     const sortedAdmins = Object.fromEntries(
       Object.entries(admins).sort(([, a], [, b]) => a - b)
@@ -148,12 +195,18 @@ const sendsAdminList = async () => {
         admins[key]
       }`;
     });
-    await sendMessageToAdmin(message);
+    await sendMessage(chatId, message);
   } catch (err) {
-    sendMessageToAdmin("sendAdminList Error", err);
+    await sendMessageToAdmin(`function: sendAdminList\nerror: ${err}`);
   }
 };
-const addAsAdmin = async (username, userId) => {
+
+/**
+ * add the provided user to the admin list
+ * @param {string} username
+ * @param {number|string} userId
+ */
+const addAdmin = async (username, userId) => {
   let message = "";
   try {
     await client
@@ -168,21 +221,29 @@ const addAsAdmin = async (username, userId) => {
         }
       );
     message = `user ${username} with id ${userId} added as admin.`;
+    await setCache();
   } catch (err) {
-    message = err;
+    message = `function: add\nusername: ${username}\nuser_id: ${userId}\nerror: ${err}`;
   } finally {
     await sendMessageToAdmin(message);
   }
 };
+
+/**
+ * remove the given username from the admin list
+ * @param {string} username
+ */
 const removeAdmin = async (username) => {
   if (!username) {
-    await sendMessageToAdmin("no admin username was required.");
+    await sendMessageToAdmin(
+      `function: removeAdmin\nerror: no admin username was given.`
+    );
     return;
   }
   let message = "";
   try {
-    const admins = await findAllAdmins();
-    if (admins.length > 1) {
+    if (!cache.admins) await setCache();
+    if (Object.keys(cache.admins).length > 1) {
       await client
         .db("news-read-count-db")
         .collection("data")
@@ -195,16 +256,23 @@ const removeAdmin = async (username) => {
           }
         );
       message = `user ${username} removed from admin list.`;
+
+      await setCache();
     } else {
-      message = `there has to be at least one user on the admin list.`;
+      message = `function: removeAdmin\nerror: there has to be at least one user on the admin list.`;
     }
   } catch (err) {
-    message = err;
+    message = `function: removeAdmin\nusername: ${username}\nerror: ${err}`;
   } finally {
     await sendMessageToAdmin(message);
   }
 };
 
+/**
+ * find on document with the given id
+ * @param {string} collection_id
+ * @returns
+ */
 const findOneDocument = async (collection_id) => {
   try {
     const collection = await client
@@ -213,8 +281,12 @@ const findOneDocument = async (collection_id) => {
       .findOne({ _id: ObjectId(collection_id) });
     return collection;
   } catch (err) {
-    await sendMessageToAdmin(err);
-    throw new Error(err);
+    await sendMessageToAdmin({
+      function: "findOneDocument",
+      collection_id,
+      error: err,
+    });
+    throw new Error(`findOneDocument\nError: ${err}`);
   }
 };
 
@@ -239,20 +311,24 @@ const sendReport = async () => {
 
     await sendMessage(CHAT_ID, report);
   } catch (err) {
-    await sendMessageToAdmin(err);
+    await sendMessageToAdmin(`function: "sendReport"\nerror: ${err}`);
+    throw new Error(`sendReport\nError: ${err}`);
   }
 };
 
 /**
- * sends a message to the admin
+ * sends a message to every admin
  * @param {string} message
  * @returns void
  */
 const sendMessageToAdmin = async (message) => {
   try {
-    await sendMessage(ADMIN_ID, message);
+    if (!cache.admins) await setCache();
+    Object.values(cache.admins).forEach(async (userId) => {
+      await sendMessage(userId, message);
+    });
   } catch (err) {
-    console.error(err);
+    console.error(`sendMessageToAdmin Error\n${message}`);
   }
 };
 
@@ -274,16 +350,18 @@ const sendMessage = async (chat_id, message) => {
         console.log(error);
       });
   } catch (err) {
-    console.error(err);
+    await sendMessageToAdmin(
+      `function: "sendMessage"\nchat_id: ${chat_id}\nmessage: ${message}`
+    );
   }
 };
 
 module.exports = {
   client: client,
-  addAsAdmin: addAsAdmin,
+  addAdmin: addAdmin,
   removeAdmin: removeAdmin,
   findAllAdmins: findAllAdmins,
-  sendsAdminList: sendsAdminList,
+  sendAdminList: sendAdminList,
   removeAdmin: removeAdmin,
   dbConnectionTest: dbConnectionTest,
   findOneDocument: findOneDocument,
@@ -293,4 +371,7 @@ module.exports = {
   sendMessage: sendMessage,
   sendMessageToAdmin: sendMessageToAdmin,
   sendReport: sendReport,
+  cache: cache,
+  setCache: setCache,
+  isAdmin: isAdmin,
 };

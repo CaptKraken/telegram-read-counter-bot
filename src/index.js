@@ -20,12 +20,14 @@ const {
   updateOrCreate,
   removeAdmin,
   findOneDocument,
-  sendsAdminList,
+  sendAdminList,
   increaseReportCount,
   sendMessage,
-  addAsAdmin,
+  addAdmin,
+  cache,
+  setCache,
+  isAdmin,
 } = require("./services");
-const { cache, setCache, isAdmin } = require("./cache");
 
 const TELEGRAM_API = `https://api.telegram.org/bot${TOKEN}`;
 const URI = `/webhook/${TOKEN}`;
@@ -44,11 +46,11 @@ const init = async () => {
     const res = await axios.get(
       `${TELEGRAM_API}/setWebhook?url=${WEBHOOK_URL}`
     );
-    if (cache.length > 0) return;
+    if (Object.keys(cache).length > 0) return;
     await setCache();
   } catch (err) {
-    console.log(err);
-    sendMessageToAdmin(err);
+    console.log(`INIT FAILED\n${err}`);
+    sendMessageToAdmin(`INIT FAILED\n${err}`);
   }
 };
 
@@ -66,7 +68,7 @@ cron.schedule(
       await increaseReportCount();
       await sendReport();
     } catch (err) {
-      await sendMessageToAdmin(err);
+      await sendMessageToAdmin(`Cron Job Error\nerror: ${err}`);
     } finally {
       await client.close();
     }
@@ -88,95 +90,100 @@ app.post(URI, async (req, res) => {
 
   const text = message.text;
   if (!text) return res.send();
+
   const messageId = message.message_id;
   const chatId = message.chat.id;
   if (!chatId) return res.send();
+
   const senderId = message.from.id;
   const isSenderAdmin = await isAdmin(senderId);
+  const isFromReadingGroup = chatId.toString() === CHAT_ID.toString();
 
   try {
     await client.connect();
 
-    if (text === "/me") {
+    if (text.substring(0, 3).startsWith("/me")) {
       await sendMessage(
         chatId,
-        `id: ${senderId}\nusername: ${message.from.username}`
+        `id: ${senderId}\nusername: ${message.from.username ?? ""}`
       );
       return res.send();
     }
-    if (Number(chatId) != Number(CHAT_ID) && !isSenderAdmin) {
-      return res.send();
-    }
-
-    if (text.startsWith("/admins")) {
-      await sendsAdminList();
-      return res.send();
-    }
-
-    if (text.startsWith("/addAsAdmin")) {
-      let addAdminCommandText = text.includes("/addAsAdmin@read_count_bot")
-        ? "/addAsAdmin@read_count_bot"
-        : "/addAsAdmin";
-      const [username, id] = text
-        .replace(`${addAdminCommandText} `, "")
-        .split(" ");
-      if (!username || !id) return res.send();
-
-      await addAsAdmin(username, id);
-      return res.send();
-    }
-    if (text.startsWith("/removeAdmin")) {
-      let removeCommandText = text.includes("/removeAdmin@read_count_bot")
-        ? "/removeAdmin@read_count_bot"
-        : "/removeAdmin";
-      const adminName = text.replace(`${removeCommandText} `, "");
-      if (adminName) {
-        await removeAdmin(adminName);
-      }
-      return res.send();
-    }
-
-    if (text.startsWith("/remove")) {
-      let removeCommandText = text.includes("/remove@read_count_bot")
-        ? "/remove@read_count_bot"
-        : "/remove";
-      const readerName = text.replace(`${removeCommandText} `, "");
-      if (readerName) {
-        if (Number(message.from.id) === Number(ADMIN_ID)) {
-          await removeReader(readerName);
-        }
-      }
-      return res.send();
-    }
-
-    if (text.startsWith("/report")) {
-      await sendReport();
-      return res.send();
-    }
-
-    const arr = text.split(" ");
-    if (arr.length === 4) {
-      const count = arr[0].replace("#", "");
-      const user = arr[1];
-      const duration = arr[2];
-      const times = arr[3];
-
-      if (
-        isNumber(count) === false ||
-        isDurationString(duration) === false ||
-        isTimesString(times) === false
-      ) {
+    if (isSenderAdmin) {
+      if (text.startsWith("/admins")) {
+        await sendAdminList(chatId);
         return res.send();
       }
 
-      await updateOrCreate(
-        user,
-        Number(convertKhmerToArabicNumerals(count)),
-        messageId
-      );
+      if (text.startsWith("/addAdmin")) {
+        let addAdminCommandText = text.includes("/addAdmin@read_count_bot")
+          ? "/addAdmin@read_count_bot"
+          : "/addAdmin";
+        const [username, id] = text
+          .replace(`${addAdminCommandText} `, "")
+          .split(" ");
+        if (!username || !id) return res.send();
+
+        await addAdmin(username, id);
+
+        return res.send();
+      }
+
+      if (text.startsWith("/removeAdmin")) {
+        let removeCommandText = text.includes("/removeAdmin@read_count_bot")
+          ? "/removeAdmin@read_count_bot"
+          : "/removeAdmin";
+        const adminName = text.replace(`${removeCommandText} `, "");
+        if (adminName) {
+          await removeAdmin(adminName);
+        }
+        return res.send();
+      }
+
+      if (text.startsWith("/remove")) {
+        let removeCommandText = text.includes("/remove@read_count_bot")
+          ? "/remove@read_count_bot"
+          : "/remove";
+        const readerName = text.replace(`${removeCommandText} `, "");
+        if (readerName) {
+          if (Number(message.from.id) === Number(ADMIN_ID)) {
+            await removeReader(readerName);
+          }
+        }
+        return res.send();
+      }
+
+      if (text.startsWith("/report")) {
+        await sendReport();
+        return res.send();
+      }
+    }
+
+    if (isFromReadingGroup || isSenderAdmin) {
+      const arr = text.split(" ");
+      if (arr.length === 4) {
+        const count = arr[0].replace("#", "");
+        const user = arr[1];
+        const duration = arr[2];
+        const times = arr[3];
+
+        if (
+          isNumber(count) === false ||
+          isDurationString(duration) === false ||
+          isTimesString(times) === false
+        ) {
+          return res.send();
+        }
+
+        await updateOrCreate(
+          user,
+          Number(convertKhmerToArabicNumerals(count)),
+          messageId
+        );
+      }
     }
   } catch (err) {
-    sendMessageToAdmin(err);
+    console.log(err);
   } finally {
     await client.close();
     return res.send();
