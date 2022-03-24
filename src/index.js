@@ -49,8 +49,7 @@ const init = async () => {
     if (Object.keys(cache).length > 0) return;
     await setCache();
   } catch (err) {
-    console.log(`INIT FAILED\n${err}`);
-    sendMessageToAdmin(`INIT FAILED\n${err}`);
+    await sendMessageToAdmin(`INIT FAILED\n${err}`);
   }
 };
 
@@ -160,12 +159,18 @@ app.post(URI, async (req, res) => {
     }
 
     if (isFromReadingGroup || isSenderAdmin) {
-      const arr = text.split(" ");
-      if (arr.length === 4) {
-        const count = arr[0].replace("#", "");
-        const user = arr[1];
-        const duration = arr[2];
-        const times = arr[3];
+      if (!text.trim().startsWith("#")) return res.send();
+
+      const result = text
+        .trim() // removes empty spaces front & back
+        .split(" ") // splits into an array
+        .filter((n) => n.length > 0); // removes empty items from array
+
+      if (result.length === 4) {
+        const count = result[0].replace("#", "");
+        const user = result[1];
+        const duration = result[2];
+        const times = result[3];
 
         if (
           isNumber(count) === false ||
@@ -183,7 +188,7 @@ app.post(URI, async (req, res) => {
       }
     }
   } catch (err) {
-    console.log(err);
+    await sendMessageToAdmin(`ERROR:\nmessage:\n${message}\nerr:\n${err}`);
   } finally {
     await client.close();
     return res.send();
