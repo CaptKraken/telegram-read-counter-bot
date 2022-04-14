@@ -161,12 +161,16 @@ app.post(URI, async (req, res) => {
 
     if (isFromReadingGroup || isSenderAdmin) {
       const arr = text.split(" ");
-      if (arr.length === 4) {
-        const count = arr[0].replace("#", "");
-        const user = arr[1];
-        const duration = arr[2];
-        const times = arr[3];
-
+      let count, user, duration, times;
+      if (arr.length === 4 || arr.length === 5) {
+        count = arr[0].replace("#", "");
+        user = arr[1];
+        duration = arr[2];
+        if (arr.length === 4) {
+          times = arr[3];
+        } else {
+          times = arr[4];
+        }
         if (
           isNumber(count) === false ||
           isDurationString(duration) === false ||
