@@ -108,6 +108,7 @@ app.post(URI, async (req, res) => {
       );
       return res.send();
     }
+
     if (isSenderAdmin) {
       if (text.startsWith("/admins")) {
         await sendAdminList(chatId);
@@ -165,7 +166,7 @@ app.post(URI, async (req, res) => {
         .trim() // removes empty spaces front & back
         .split(" ") // splits into an array
         .filter((n) => n.length > 0); // removes empty items from array
-
+      console.log(result);
       let count, user, duration, times;
       if (result.length === 4 || result.length === 5) {
         count = result[0].replace("#", "");
